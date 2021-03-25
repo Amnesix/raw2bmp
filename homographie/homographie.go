@@ -100,6 +100,7 @@ func ConstituerMatriceDistortion() [hsp][wsp]uint32 {
 		for j := uint32(0); j < wsp; j++ {
 			norme := math.Sqrt(math.Pow(float64(j-wsp/2), 2) + math.Pow(float64(i-hsp/2), 2))
 			coef := ld_polynomial_evaluation(coeffs(), degres, norme)
+			coef = 0.
 			j2s := (float64(wsp/2) + float64(j-wsp/2)*coef) * float64(paspix)
 			i2s := (float64(hsp/2) + float64(i-hsp/2)*coef) * float64(paspix)
 			j3s := (float64(wsp/2) + float64(wsp/2-j)*coef) * float64(paspix)

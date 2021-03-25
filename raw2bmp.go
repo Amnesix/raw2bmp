@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"raw2bmp/bmputil"
 	"raw2bmp/files"
-	"raw2bmp/homographie"
 )
 
 const hauteur, largeur uint32 = 960, 1280
@@ -25,7 +24,7 @@ func max(a, b uint32) uint32 {
 }
 
 func main() {
-	rep := "/home/pmc/Images/"
+	rep := "./raw/"
 	raws := files.GetRaws(rep)
 	var width, height uint32
 	var bayer []byte
@@ -39,7 +38,7 @@ func main() {
 		fmt.Printf("%v : Size:%v×%v, len:%v\n", name, width, height, len(bayer))
 
 		fmt.Println("Préparation table d'homographie...")
-		tbhomo := homographie.ConstituerMatriceDistortion()
+		//tbhomo := homographie.ConstituerMatriceDistortion()
 
 		const rougeRef, vertRef, bleuRef byte = 201, 207, 197
 		const ratioRV uint32 = (102400 * uint32(rougeRef)) / (uint32(vertRef))
@@ -51,7 +50,7 @@ func main() {
 		for y := uint32(0); y < hauteur; y++ {
 			ofd := y * largeur
 			for x := uint32(0); x < largeur; x++ {
-				ofs := tbhomo[y][x]
+				ofs := y*step2 + x*2 // tbhomo[y][x]
 				if step2*2 < ofs && ofs < step*(height-2)-2 && (ofs%step) > 1 && (ofs%step) < step-2 {
 					rouge := uint32(bayer[ofs])
 					t0 := uint32((bayer[ofs-step-1] + bayer[ofs-step+1] + bayer[ofs+step-1] + bayer[ofs+step+1]) << 1)
