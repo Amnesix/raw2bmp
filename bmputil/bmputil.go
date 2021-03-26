@@ -57,16 +57,25 @@ func entete2byte(entete *BmpHeader) []byte {
 	return buf
 }
 
-func SvBmp(name string, data *[]byte, size Size) {
-	nb_octet_par_ligne := size.Largeur * 3
-	sizeImg := nb_octet_par_ligne * size.Hauteur
+func SvBmp(name string, data *[]byte, size Size, mode uint16) {
+	var nb_octet_par_ligne uint32
+	var sizeImg uint32
+
+	switch mode {
+	case 24:
+		nb_octet_par_ligne = size.Largeur * 3
+		sizeImg = nb_octet_par_ligne * size.Hauteur
+	case 32:
+		nb_octet_par_ligne = size.Largeur * 4
+		sizeImg = nb_octet_par_ligne * size.Hauteur
+	}
 	var entete BmpHeader = BmpHeader{
 		0x4d42,
 		bfSize + sizeImg,
 		0, 0,
 		bfSize, biSize,
 		size.Largeur, size.Hauteur,
-		1, 24, 0,
+		1, mode, 0,
 		sizeImg,
 		8000, 8000,
 		0, 0}

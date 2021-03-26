@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+/*
+   Récupérer la liste des fichiers raw du répertoire donné
+*/
 func GetRaws(rep string) []string {
 	infos, err := ioutil.ReadDir(rep)
 	if err != nil {

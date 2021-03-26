@@ -1,7 +1,6 @@
 package homographie
 
 import (
-	"log"
 	"math"
 )
 
@@ -10,7 +9,6 @@ type Point struct {
 }
 
 const wsp, hsp uint32 = 1280, 960
-const degres uint32 = 4
 
 func min(a, b uint32) uint32 {
 	if a <= b {
@@ -19,16 +17,12 @@ func min(a, b uint32) uint32 {
 	return b
 }
 
-func coeffs() [5]float64 {
-	return [5]float64{1.05, -2.468025e-06, -8.355279e-08, -5.611001e-11, 8.427150e-14}
-}
-
-func coins() [4]Point {
-	return [4]Point{{64, 39}, {1256, 39}, {1259, 916}, {54, 917}}
-}
-
 func Norme(p1, p2 Point) float64 {
 	return math.Sqrt(math.Pow(p1.X-p2.X, 2) + math.Pow(p1.Y-p2.Y, 2))
+}
+
+func init() {
+
 }
 
 func MAT_GetPerspectiveTransform(P [4]Point) [9]float64 {
@@ -52,7 +46,7 @@ func MAT_GetPerspectiveTransform(P [4]Point) [9]float64 {
 		dy1 := P[1].Y - P[2].Y
 		dy2 := P[3].Y - P[2].Y
 
-		z := dx1*dy1 - dy1*dx2
+		z := dx1*dy2 - dy1*dx2
 		g := (sx*dy2 - sy*dx2) / z
 		h := (sy*dx1 - sx*dy1) / z
 
@@ -69,26 +63,37 @@ func MAT_GetPerspectiveTransform(P [4]Point) [9]float64 {
 	return H
 }
 
-func MAT_Projective_mapping(u *float64, v *float64, H [9]float64) {
+func MAT_Projective_mappingFloat(u *float64, v *float64, H [9]float64) {
 	x := (H[0]**u + H[1]**v + H[2]) / (H[6]**u + H[7]**v + 1.)
 	y := (H[3]**u + H[4]**v + H[5]) / (H[6]**u + H[7]**v + 1.)
 	*u = x
 	*v = y
 }
 
-func ld_polynomial_evaluation(a [5]float64, na uint32, x float64) float64 {
+func MAT_Projective_mappingInt(u *int32, v *int32, H [9]float64) {
+	h := make([]int32, 9)
+	for i := 0; i < 9; i++ {
+		h[i] = int32(H[i])
+	}
+	x := (h[0]**u + h[1]**v + h[2]) / (h[6]**u + h[7]**v + 1.)
+	y := (h[3]**u + h[4]**v + h[5]) / (h[6]**u + h[7]**v + 1.)
+	*u = x
+	*v = y
+}
+
+func ld_polynomial_evaluation(a [5]float64, na int, x float64) float64 {
 	res := a[na]
-	for i := int(na - 1); i >= 0; i-- {
+	for i := na - 1; i >= 0; i-- {
 		res = res*x + a[i]
 	}
 	return res
 }
 
-func ConstituerMatriceDistortion() [hsp][wsp]uint32 {
+func ConstituerMatriceDistortion(coins [4]Point, degre int, coefs [5]float64) [hsp][wsp]uint32 {
 	var mire_w, mire_h uint32 = 209, 154
 	var width, height uint32 = 2584, 1936
 	//size := width * height
-	var paspix uint32 = 2
+	var paspix float64 = 2.
 
 	var tonneau [hsp][wsp]uint32
 	for h := uint32(0); h < hsp; h++ {
@@ -96,23 +101,26 @@ func ConstituerMatriceDistortion() [hsp][wsp]uint32 {
 			tonneau[h][w] = 0xFFFFFFFF
 		}
 	}
-	for i := uint32(0); i < hsp; i++ {
-		for j := uint32(0); j < wsp; j++ {
-			norme := math.Sqrt(math.Pow(float64(j-wsp/2), 2) + math.Pow(float64(i-hsp/2), 2))
-			coef := ld_polynomial_evaluation(coeffs(), degres, norme)
-			coef = 0.
-			j2s := (float64(wsp/2) + float64(j-wsp/2)*coef) * float64(paspix)
-			i2s := (float64(hsp/2) + float64(i-hsp/2)*coef) * float64(paspix)
-			j3s := (float64(wsp/2) + float64(wsp/2-j)*coef) * float64(paspix)
-			i3s := (float64(hsp/2) + float64(hsp/2-i)*coef) * float64(paspix)
-			i2 := uint32(math.RoundToEven(i2s))
-			j2 := uint32(math.RoundToEven(j2s))
-			i3 := uint32(math.RoundToEven(i3s))
-			j3 := uint32(math.RoundToEven(j3s))
-			if !(0 <= i2 && i2 < height && 0 <= j2 && j2 < width) {
+	var norme, coef, j2s, i2s, j3s, i3s float64
+	var i2, j2, i3, j3 uint32
+	for i := uint32(0); i < hsp/2; i++ {
+		for j := uint32(0); j < wsp/2; j++ {
+			//norme = math.Sqrt(math.Pow(float64(j-wsp/2), 2) + math.Pow(float64(i-hsp/2), 2))
+			norme = math.Sqrt(float64((j-wsp/2)*(j-wsp/2) + (i-hsp/2)*(i-hsp/2)))
+			coef = ld_polynomial_evaluation(coefs, degre, norme)
+			j2s = (float64(wsp)/2. + float64(j) - float64(wsp)/2.*coef) * paspix
+			i2s = (float64(hsp)/2. + float64(i) - float64(hsp)/2.*coef) * paspix
+			j3s = (float64(wsp)/2. + float64(wsp)/2. - float64(j)*coef) * paspix
+			i3s = (float64(hsp)/2. + float64(hsp)/2. - float64(i)*coef) * paspix
+			i2 = uint32(math.RoundToEven(i2s))
+			j2 = uint32(math.RoundToEven(j2s))
+			i3 = uint32(math.RoundToEven(i3s))
+			j3 = uint32(math.RoundToEven(j3s))
+			//fmt.Println(i, j, i2, j2, i3, j3, j2s, i2s, j3s, i3s, height, width)
+			if i2 >= height || j2 >= width {
 				continue
 			}
-			if !(0 <= i3 && i3 < height && 0 <= j3 && j3 < width) {
+			if i3 >= height || j3 >= width {
 				continue
 			}
 			ofs := i2*width + j2
@@ -121,36 +129,39 @@ func ConstituerMatriceDistortion() [hsp][wsp]uint32 {
 			ofs3 := i3*width + j3
 			tonneau[i][j] = ofs
 			tonneau[i][(wsp-1)-j] = ofs1
-			tonneau[(hsp-1)-i][j] = ofs2
-			tonneau[(hsp-1)-i][(wsp-1)-j] = ofs3
+			tonneau[hsp-1-i][j] = ofs2
+			tonneau[hsp-1-i][wsp-1-j] = ofs3
 		}
 	}
 	var homographie [hsp][wsp]uint32
-	H := MAT_GetPerspectiveTransform(coins())
+	for h := uint32(0); h < hsp; h++ {
+		for w := uint32(0); w < wsp; w++ {
+			homographie[h][w] = 0xFFFFFFFF
+		}
+	}
+	H := MAT_GetPerspectiveTransform(coins)
 
-	P0P1 := math.Round(Norme(coins()[0], coins()[1]))
-	P3P2 := math.Round(Norme(coins()[2], coins()[3]))
+	P0P1 := math.Round(Norme(coins[0], coins[1]))
+	P3P2 := math.Round(Norme(coins[2], coins[3]))
 
-	var rw uint32
+	var rw, rh, ow, oh uint32
 	if P0P1+P3P2 != 0 {
 		rw = uint32(P0P1+P3P2) / 2
 	} else {
-		rw = 1280
+		rw = wsp
 	}
 	rw = min(rw, wsp)
-	rh := uint32((rw * mire_h) / mire_w)
+	rh = uint32((rw * mire_h) / mire_w)
+	ow, oh = (wsp-rw)/2, (hsp-rh)/2
 
-	ow, oh := (wsp-rw)/2, (hsp-rh)/2
-
-	for i := oh - 63; i < rh+oh+64; i++ {
-		for j := ow - 48; j < rw+ow+48; j++ {
-			u, v := float64((j-ow)/rw), float64((i-oh)/rh)
-			MAT_Projective_mapping(&u, &v, H)
-			i2, j2 := uint32(math.Round(u)), uint32(math.Round(v))
-			if 0 <= i2 && i2 < hsp && 0 <= j2 && j2 < wsp {
-				if i < 0 || j < 0 {
-					log.Fatal("Erreur", i, j)
-				}
+	for i := oh - min(oh, 64); i < min(hsp, rh+oh+64); i++ {
+		for j := ow - min(ow, 48); j < min(wsp, rw+ow+48); j++ {
+			//u, v := (float64(j)-float64(ow))/float64(rw), (float64(i)-float64(oh))/float64(rh)
+			u, v := int32(10000*(j-ow)/rw), int32(10000*(i-oh)/rh)
+			MAT_Projective_mappingInt(&u, &v, H)
+			//i2, j2 := uint32(math.Round(u)), uint32(math.Round(v))
+			i2, j2 := u, v
+			if 0 <= i2 && i2 < int32(hsp) && 0 <= j2 && j2 < int32(wsp) {
 				homographie[i][j] = tonneau[i2][j2]
 			}
 		}
