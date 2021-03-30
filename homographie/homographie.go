@@ -8,9 +8,9 @@ type Point struct {
 	X, Y float64
 }
 
-const wsp, hsp uint32 = 1280, 960
+const wsp, hsp int32 = 1280, 960
 
-func min(a, b uint32) uint32 {
+func min(a, b int32) int32 {
 	if a <= b {
 		return a
 	}
@@ -75,8 +75,8 @@ func MAT_Projective_mappingInt(u *int32, v *int32, H [9]float64) {
 	for i := 0; i < 9; i++ {
 		h[i] = int32(H[i])
 	}
-	x := (h[0]**u + h[1]**v + h[2]) / (h[6]**u + h[7]**v + 1.)
-	y := (h[3]**u + h[4]**v + h[5]) / (h[6]**u + h[7]**v + 1.)
+	x := (h[0]**u + h[1]**v + 10000*h[2]) / (h[6]**u + h[7]**v + 10000)
+	y := (h[3]**u + h[4]**v + 10000*h[5]) / (h[6]**u + h[7]**v + 10000)
 	*u = x
 	*v = y
 }
@@ -89,33 +89,47 @@ func ld_polynomial_evaluation(a [5]float64, na int, x float64) float64 {
 	return res
 }
 
-func ConstituerMatriceDistortion(coins [4]Point, degre int, coefs [5]float64) [hsp][wsp]uint32 {
-	var mire_w, mire_h uint32 = 209, 154
-	var width, height uint32 = 2584, 1936
+func ConstituerMatriceDistortion(coins [4]Point, degre int, coefs [5]float64) [hsp * wsp]int32 {
+	var mire_w, mire_h int32 = 209, 154
+	var width, height int32 = 2584, 1936
 	//size := width * height
 	var paspix float64 = 2.
 
-	var tonneau [hsp][wsp]uint32
-	for h := uint32(0); h < hsp; h++ {
-		for w := uint32(0); w < wsp; w++ {
-			tonneau[h][w] = 0xFFFFFFFF
-		}
+	var tonneau [hsp * wsp]int32
+	var ofd int32 = 0
+	for ofd = 0; ofd < hsp*wsp; ofd++ {
+		tonneau[ofd] = -1
 	}
 	var norme, coef, j2s, i2s, j3s, i3s float64
-	var i2, j2, i3, j3 uint32
-	for i := uint32(0); i < hsp/2; i++ {
-		for j := uint32(0); j < wsp/2; j++ {
+	var i2, j2, i3, j3 int32
+	for i := int32(0); i <= hsp/2; i++ {
+		for j := int32(0); j <= wsp/2; j++ {
 			//norme = math.Sqrt(math.Pow(float64(j-wsp/2), 2) + math.Pow(float64(i-hsp/2), 2))
-			norme = math.Sqrt(float64((j-wsp/2)*(j-wsp/2) + (i-hsp/2)*(i-hsp/2)))
+			var a, b float64
+			a = float64(j) - float64(wsp)/2.
+			b = float64(i) - float64(hsp)/2.
+			norme = math.Sqrt(a*a + b*b)
 			coef = ld_polynomial_evaluation(coefs, degre, norme)
-			j2s = (float64(wsp)/2. + float64(j) - float64(wsp)/2.*coef) * paspix
-			i2s = (float64(hsp)/2. + float64(i) - float64(hsp)/2.*coef) * paspix
-			j3s = (float64(wsp)/2. + float64(wsp)/2. - float64(j)*coef) * paspix
-			i3s = (float64(hsp)/2. + float64(hsp)/2. - float64(i)*coef) * paspix
-			i2 = uint32(math.RoundToEven(i2s))
-			j2 = uint32(math.RoundToEven(j2s))
-			i3 = uint32(math.RoundToEven(i3s))
-			j3 = uint32(math.RoundToEven(j3s))
+			j2s = (float64(wsp)/2. + (float64(j)-float64(wsp)/2.)*coef) * paspix
+			i2s = (float64(hsp)/2. + (float64(i)-float64(hsp)/2.)*coef) * paspix
+			j3s = (float64(wsp)/2. + (float64(wsp)/2.-float64(j))*coef) * paspix
+			i3s = (float64(hsp)/2. + (float64(hsp)/2.-float64(i))*coef) * paspix
+			i2 = int32(math.Round(i2s))
+			j2 = int32(math.Round(j2s))
+			i3 = int32(math.Round(i3s))
+			j3 = int32(math.Round(j3s))
+			if i2%2 != 0 {
+				i2--
+			}
+			if j2%2 == 0 {
+				j2--
+			}
+			if i3%2 != 0 {
+				i3--
+			}
+			if j3%2 == 0 {
+				j3--
+			}
 			//fmt.Println(i, j, i2, j2, i3, j3, j2s, i2s, j3s, i3s, height, width)
 			if i2 >= height || j2 >= width {
 				continue
@@ -123,47 +137,41 @@ func ConstituerMatriceDistortion(coins [4]Point, degre int, coefs [5]float64) [h
 			if i3 >= height || j3 >= width {
 				continue
 			}
-			ofs := i2*width + j2
-			ofs1 := i2*width + j3
-			ofs2 := i3*width + j2
-			ofs3 := i3*width + j3
-			tonneau[i][j] = ofs
-			tonneau[i][(wsp-1)-j] = ofs1
-			tonneau[hsp-1-i][j] = ofs2
-			tonneau[hsp-1-i][wsp-1-j] = ofs3
+			tonneau[i*wsp+j] = i2*width + j2
+			tonneau[i*wsp+(wsp-1)-j] = i2*width + j3
+			tonneau[(hsp-1-i)*wsp+j] = i3*width + j2
+			tonneau[(hsp-1-i)*wsp+wsp-1-j] = i3*width + j3
 		}
 	}
-	var homographie [hsp][wsp]uint32
-	for h := uint32(0); h < hsp; h++ {
-		for w := uint32(0); w < wsp; w++ {
-			homographie[h][w] = 0xFFFFFFFF
-		}
+	var homographie [hsp * wsp]int32
+	for ofd = 0; ofd < hsp*wsp; ofd++ {
+		homographie[ofd] = -1
 	}
 	H := MAT_GetPerspectiveTransform(coins)
 
 	P0P1 := math.Round(Norme(coins[0], coins[1]))
 	P3P2 := math.Round(Norme(coins[2], coins[3]))
 
-	var rw, rh, ow, oh uint32
+	var rw, rh, ow, oh int32
 	if P0P1+P3P2 != 0 {
-		rw = uint32(P0P1+P3P2) / 2
+		rw = int32(P0P1+P3P2) / 2
 	} else {
 		rw = wsp
 	}
 	rw = min(rw, wsp)
-	rh = uint32((rw * mire_h) / mire_w)
+	rh = (rw * mire_h) / mire_w
 	ow, oh = (wsp-rw)/2, (hsp-rh)/2
 
-	for i := oh - min(oh, 64); i < min(hsp, rh+oh+64); i++ {
-		for j := ow - min(ow, 48); j < min(wsp, rw+ow+48); j++ {
-			//u, v := (float64(j)-float64(ow))/float64(rw), (float64(i)-float64(oh))/float64(rh)
-			u, v := int32(10000*(j-ow)/rw), int32(10000*(i-oh)/rh)
-			MAT_Projective_mappingInt(&u, &v, H)
-			//i2, j2 := uint32(math.Round(u)), uint32(math.Round(v))
-			i2, j2 := u, v
-			if 0 <= i2 && i2 < int32(hsp) && 0 <= j2 && j2 < int32(wsp) {
-				homographie[i][j] = tonneau[i2][j2]
+	for i := oh - 64; i < rh+oh+64; i++ {
+		ofd = i * wsp
+		for j := ow - 48; j < rw+ow+48; j++ {
+			u, v := (float64(j)-float64(ow))/float64(rw), (float64(i)-float64(oh))/float64(rh)
+			MAT_Projective_mappingFloat(&u, &v, H)
+			i2, j2 := int32(math.Round(v)), int32(math.Round(u))
+			if 0 <= i2 && i2 < hsp && 0 <= j2 && j2 < wsp && ofd >= 0 && ofd < wsp*hsp {
+				homographie[ofd] = tonneau[i2*wsp+j2]
 			}
+			ofd++
 		}
 	}
 
